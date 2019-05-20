@@ -4,6 +4,8 @@ These scripts are compatible with ph3 which can be downloaded from here: https:/
 
 The version these scripts were tested with can be found here: https://ux.getuploader.com/touhougc/download/4
 
+This installation assumes that the location of the default scripts that come with the initial installation are unchanged, as the directories have been specified as absolute.
+
 ## Install
 
 To make use of the scripts, put the contents of this repository into the Danmakufu `/script` directory.
