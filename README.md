@@ -8,6 +8,6 @@ This installation assumes that the location of the default scripts that come wit
 
 ## Install
 
-To make use of the scripts, put the contents of this repository into the Danmakufu `/script` directory.
+To make use of the scripts, merge the contents of this repository into the Danmakufu `/script` directory.
 
 Running Danmakufu after completing this, should make the script runnable from within.
