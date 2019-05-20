@@ -1,0 +1,361 @@
+#TouhouDanmakufu[Single]
+#ScriptVersion[3]
+#Title["Test 04"]
+#Text["Spell Card"]
+
+// Declare boss and boss spawn co-ordinates, as well as boss texture
+let bossObj;
+let bossX = 0;
+let bossY = 0;
+
+// Find script storage location and declare files
+// Engine ignores anything with RGB value of 0,0,0 and sees it as transparency.
+// normal transparency works,  but black backgrounds apparently function better with glow effects.
+// This is because the functions available on files with black are more expanded and allow for you to call things like BLEND_ADD_ARGB that has a glow effect instead of just BLEND_ALPHA which does not.
+// The above 2 calls are types in the function ObjRender_SetBlendType(Obj, type), and put in the type field
+let imgBoss = GetCurrentScriptDirectory ~ "texture/cow.png";
+let overlay = GetCurrentScriptDirectory ~ "texture/blizzard.png";
+
+// background file I took from a monster hunter world screenshot.
+let mountain = GetCurrentScriptDirectory ~ "texture/mountain.png";
+
+// Declare sound effects
+let spellCardSFX = GetCurrentScriptDirectory ~ "sounds/jasis.wav";
+let bossDeathSFX = GetCurrentScriptDirectory ~ "sounds/ahfuck.wav";
+
+// Declare the animation frames we'll be keeping track of
+let animFrame1 = 0;
+let animFrame2 = 0;
+
+// Tell the game where the default bullets and explosions are stored, for us to make use of. Directory based on root of game folder.
+#include "script/default_system/Default_ShotConst.txt"
+#include "script/default_system/Default_Effect.txt"
+
+@Initialize {
+
+	// This checks for the script to end, and will delete all entities that might have been left behind.
+	SetAutoDeleteObject(true);
+
+	// define boss scene in objScene and call it at the start of the initialization process.
+	// let objScene = GetEnemyBossSceneObjectID();
+	// ObjEnemyBossScene_StartSpell(objScene);
+
+	// define a boss in bossObj and register it
+	bossObj = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(bossObj);
+
+	// Spawn the boss in the center, variables expected are Object, xlocation and ylocation, off screen can be used by declaring negative values.
+	ObjMove_SetPosition(bossObj, 192, 120);
+
+	// Set boss location, variables expected are Object, xlocation, ylocation and speed (0,0 is left(x) top(y))
+	// Can be used to move the boss into frame if you spawned them out of frame
+	// ObjMove_SetDestAtSpeed(bossObj, 192, 120, 5);
+
+	// Initialize the sound files into the script.
+	LoadSound(spellCardSFX);
+	LoadSound(bossDeathSFX);
+
+	// On script load, run the spellCardSFX
+	PlaySE(spellCardSFX);
+
+	// runs the created task mainTask
+	mainTask;
+}
+
+@Event{
+
+	// setting the boss timer and life
+	alternative(GetEventType())
+
+	// Boss Life Value
+	case (EV_REQUEST_LIFE){
+		SetScriptResult(1000);
+	}
+
+	// Boss Timer Value
+	case (EV_REQUEST_TIMER){
+		SetScriptResult(69);
+	}
+
+}
+
+@MainLoop{
+
+	// Find the boss X and Y co-ordinates and update it to a variable.
+	// We do this in the main loop as it's always running.
+	bossX = ObjMove_GetX(bossObj);
+	bossY = ObjMove_GetY(bossObj);
+
+	// Set boss collision for your bullets to collide with the boss, variables expected are Object, x coordinate, y coordinate, and radius of hitbox.
+	ObjEnemy_SetIntersectionCircleToShot(bossObj, bossX, bossY, 24);
+
+	// Set the collision for your player character to collide with the boss, variables expected are Object, x coordinate, y coordinate, and radius of hitbox.
+	ObjEnemy_SetIntersectionCircleToPlayer(bossObj, bossX, bossY, 24);
+
+	// Always yield mainloop. This tells the script that it needs to look for other tasks to perform before running it again.
+	// If not yielded, your other tasks will not run, and the script will just repeat the current function.
+	// The same can be said for all Loops in danmakufu.
+	yield;
+
+}
+
+@Finalize{
+
+}
+
+// Yield is called for only a single frame, so you can put it in a loop to make it run for a longer period of time, 
+// This will stop functions this gets called in from rerunning until the yield has passed.
+// The expected variables for loop is the amount of times you want the loop to run. 60 frames == 1 second.
+// 'wait(1);' will function the same as 'yield;'
+// When calling wait, you give a frame value for how long you want the task to wait.
+function wait(w) {
+	loop(w){
+		yield;
+	}
+}
+
+// Recreate the shot function to only work while the boss is alive
+function CreateShotA1Boss(x, y, speed, direction, id, delay) {
+	if (ObjEnemy_GetInfo(bossObj, INFO_LIFE) > 0) {
+		CreateShotA1(x, y, speed, direction, id, delay);
+	}
+}
+
+
+
+// mainTask works as a switchboard for tasks we declare.
+task mainTask{
+	renderBoss;
+	renderBG;
+	movement;
+	TEnd;
+}
+
+// Background render task
+task renderBG{
+
+	let scrollText = 0;
+
+	// Background overlay defined here.
+	// Register 2D sprite object that you're creating, Expected variables are the object type
+	let obj = ObjPrim_Create(OBJ_SPRITE_2D);
+
+	// Expected variables are Object, Render Priority, the higher the priority, the higher the layer is.
+	// HUD and Game objects are 80 - 100, player = 30, bullets = 50
+	// SetRenderPriority without the I uses above ranges from 0.0 - 1.0, with 0.1 being the same as 10 in the scope with the I.
+	Obj_SetRenderPriorityI(obj, 20);
+
+	// Expected variables are Object and the texture you're rendering onto it.
+	ObjPrim_SetTexture(obj, mountain);
+
+	// Set the resolution of the texture, expected variables are left, top, right, bottom.
+	ObjSprite2D_SetSourceRect(obj, 0, 0, 600, 800);
+
+	// Scale the texture to fit the frame of the window. Expected variables are Object, left, top, right, bottom. We use GetStgFrameWidth/Height to grab the size of the current frame.
+	ObjSprite2D_SetDestRect(obj, 0, 0, GetStgFrameWidth, GetStgFrameHeight);
+
+
+	// Spell Card Overlay Texture defined here
+	let overlayObj = ObjPrim_Create(OBJ_SPRITE_2D);
+
+	Obj_SetRenderPriorityI(overlayObj, 21);
+
+	ObjPrim_SetTexture(overlayObj, overlay);
+
+	// Blend type ADDITIVE with Alpha and RGB colours.
+	ObjRender_SetBlendType(overlayObj, BLEND_ADD_ARGB);
+
+	// Set the Alpha value to add transparency.
+	ObjRender_SetAlpha(overlayObj, 200);
+
+	ObjSprite2D_SetSourceRect(overlayObj, 0, 0, 512, 512);
+
+	ObjSprite2D_SetDestRect(overlayObj, 0, 0, GetStgFrameWidth, GetStgFrameHeight);
+
+	// While the boss has not died, scroll overlay from top left to bottom right.
+	while (!Obj_IsDeleted(bossObj)) {
+
+		// self explanatory, every frame we move the overlay Object 2 pixels southeast.
+		ObjSprite2D_SetSourceRect(overlayObj, 0 - scrollText, 0 - scrollText, 512 - scrollText, 512 - scrollText);
+		scrollText += 2;
+		yield;
+	}
+	Obj_Delete(overlayObj);
+}
+
+// Updates the main boss render
+task renderBoss{
+	let dir;
+	let speed;
+
+	// Set the texture of the boss, variables expected are Object, texture
+	ObjPrim_SetTexture(bossObj, imgBoss);
+
+	// Set the dimensions of the boss, variables expected are Object, left, top, right, bottom (Good for using spritesheets)
+	ObjSprite2D_SetSourceRect(bossObj, 0, 0, 63, 80);
+
+	// Define the center of the object as true center.
+	ObjSprite2D_SetDestCenter(bossObj);
+
+	// Rescale the boss entity to be smaller than the image. Expected values are Object, x scale, y scale and z scale (3d).
+	ObjRender_SetScaleXYZ(bossObj, 1.0, 1.0, 0);
+
+	// Run this function while the boss is not deleted.
+	while (!Obj_IsDeleted(bossObj)) {
+
+		// Update the boss speed and direction locally
+		dir = ObjMove_GetAngle(bossObj);
+		speed = ObjMove_GetSpeed(bossObj);
+
+		// If the boss is idle, set idle animation.
+		if (speed == 0) {
+			// Set the object angle, variables expected are Object, x rotatation(vertical flipping), y rotation(horizontal flipping), z rotation (rotation)
+			ObjRender_SetAngleXYZ(bossObj, 0, 0, 0);
+			if (animFrame1 < 15) {
+				// Repeat: Set the dimensions of the boss, variables expected are Object, left, top, right, bottom (Good for using spritesheets)
+				// Below we check the frame value, if larger than a certain amount we shift to the next sprite on the spritesheet in the file.
+				ObjSprite2D_SetSourceRect(bossObj, 0, 0, 63, 79);
+			} else if (animFrame1 >= 15 && animFrame1 < 30) {
+				ObjSprite2D_SetSourceRect(bossObj, 64, 0, 127, 79);
+			} else if (animFrame1 >= 30 && animFrame1 < 45) {
+				ObjSprite2D_SetSourceRect(bossObj, 128, 0, 191, 79);
+			} else if (animFrame1 >= 45) {
+				ObjSprite2D_SetSourceRect(bossObj, 192, 0, 255, 79);
+			}
+			animFrame2 = 0;
+		}
+		// If the boss is moving left, set different animation.
+		// cos(dir) checks if the direction is set to a negative value, which means moving left.
+		else if (cos(dir) < 0) {
+			ObjRender_SetAngleXYZ(bossObj, 0, 180, 0);
+			if (animFrame2 < 15) {
+				ObjSprite2D_SetSourceRect(bossObj, 0, 80, 63, 159);
+			} else if (animFrame2 >= 15 && animFrame2 < 30) {
+				ObjSprite2D_SetSourceRect(bossObj, 64, 80, 127, 159);
+			} else if (animFrame2 >= 30 && animFrame2 < 45) {
+				ObjSprite2D_SetSourceRect(bossObj, 128, 80, 191, 159);
+			} else if (animFrame2 >= 45 && animFrame2 < 60) {
+				ObjSprite2D_SetSourceRect(bossObj, 192, 80, 255, 159);
+			} else if (animFrame2 >= 60 && animFrame2 < 75) {
+				ObjSprite2D_SetSourceRect(bossObj, 128, 80, 191, 159);
+			} else if (animFrame2 >= 75 && animFrame2 < 90) {
+				ObjSprite2D_SetSourceRect(bossObj, 64, 80, 127, 159);
+			}
+			animFrame1 = 0;
+		}
+		// If the boss is moving right, set different animation.
+		// cos(dir) checks if the direction is set to a positive value, which means moving right.
+		else if (cos(dir) > 0) {
+			ObjRender_SetAngleXYZ(bossObj, 0, 0, 0);
+			if (animFrame2 < 15) {
+				ObjSprite2D_SetSourceRect(bossObj, 0, 80, 63, 159);
+			} else if (animFrame2 >= 15 && animFrame2 < 30) {
+				ObjSprite2D_SetSourceRect(bossObj, 64, 80, 127, 159);
+			} else if (animFrame2 >= 30 && animFrame2 < 45) {
+				ObjSprite2D_SetSourceRect(bossObj, 128, 80, 191, 159);
+			} else if (animFrame2 >= 45 && animFrame2 < 60) {
+				ObjSprite2D_SetSourceRect(bossObj, 192, 80, 255, 159);
+			} else if (animFrame2 >= 60 && animFrame2 < 75) {
+				ObjSprite2D_SetSourceRect(bossObj, 128, 80, 191, 159);
+			} else if (animFrame2 >= 75 && animFrame2 < 90) {
+				ObjSprite2D_SetSourceRect(bossObj, 64, 80, 127, 159);
+			}
+			animFrame1 = 0;
+		}
+
+		// If the frame value for the animations exceed 15 frames on the last frame, we restart the counter back to 0.
+		animFrame1 += 2;
+		if (animFrame1 > 60) {
+			animFrame1 = 0;
+		}
+		animFrame2 += 2;
+		if (animFrame2 > 90) {
+			animFrame2 = 0;
+		}
+		yield;
+	}
+}
+
+// Moves the boss left and right, firing a cone at the players position at the start of the loop.
+task movement{
+	wait(120);
+	//	fire;
+	loop{
+		if (ObjEnemy_GetInfo(bossObj, INFO_LIFE) <= 0){ 
+		break; 
+		}
+		ObjMove_SetDestAtSpeed(bossObj, 100, 120, 4);
+		wait(60);
+		fire;
+		wait(30);
+		fire;
+		wait(30);
+		fire;
+		wait(60);
+
+		ObjMove_SetDestAtSpeed(bossObj, 280, 120, 4);
+		wait(60);
+		fire;
+		wait(30);
+		fire;
+		wait(30);
+		fire;
+		wait(60);
+	}
+}
+
+// Finds the angle from the boss to the player, generally used to fire bullets to the players current position at the time of calling.
+function bossAngleToPlayer {
+	let dir = atan2(GetPlayerY - bossY, GetPlayerX - bossX);
+	return dir;
+}
+
+
+// Finds the angle from the object to the player, generally used to fire bullets to the players current position at the time of calling.
+function angleToPlayer(obj) {
+	let objX = ObjMove_GetX(obj);
+	let objY = ObjMove_GetY(obj);
+	let dir = atan2(GetPlayerY - objY, GetPlayerX - objX);
+	return dir;
+}
+
+// Firing bullets are based on 360 degrees, with 0 at the right, and 90 at the bottom, going clockwise to 359
+task fire{
+
+	// Find the angle from the boss to the player before starting the firing sequence. Insert function inside loop to live track the player.
+	let dir = bossAngleToPlayer;
+	loop(5){
+		if (ObjEnemy_GetInfo(bossObj, INFO_LIFE) <= 0){ 
+			 break; 
+		}
+		// variables expected are X spawn, y spawn, speed it travels, direction it goes in, bullet type based on the id or name of the shot in Default_ShotConst, frame delay before it shows up.
+		CreateShotA1(bossX, bossY, 5, dir - 3, 14, 0);
+		CreateShotA1(bossX, bossY, 5, dir, 14, 0);
+		CreateShotA1(bossX, bossY, 5, dir + 3, 14, 0);
+
+		// Always yield your loops or they will freeze the engine for not moving onto other tasks.
+		// Here we're telling the fire task, that it should not create another bullet for another 3 frames
+		wait(3);
+	}
+}
+
+// Check to see if the boss has died, to stop script execution.
+task TEnd{
+	// Check if the boss object is alive
+	while (ObjEnemy_GetInfo(bossObj, INFO_LIFE) > 0) {
+		yield;
+	}
+
+	PlaySE(bossDeathSFX);
+
+	// Explosion Effect, expected parameters are x location, y location, opacity it grows, speed of growth
+	TExplosionA(bossX, bossY, 10, 0.5);
+
+	Obj_Delete(bossObj);
+	// Assumptions here, remove all bullets of the type in variable 1, and what happens to the object after deletion, if conversion is desired.
+	DeleteShotAll(TYPE_ALL, TYPE_ITEM);
+	wait(180);
+
+	// Close the script with the current ID when all is done.
+	CloseScript(GetOwnScriptID());
+}

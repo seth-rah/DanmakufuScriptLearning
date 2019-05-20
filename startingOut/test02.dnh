@@ -1,0 +1,187 @@
+#TouhouDanmakufu[Single]
+#ScriptVersion[3]
+#Title["Test 02"]
+#Text["Character tracking and bullet loops"]
+
+// Declare boss and boss spawn co-ordinates, as well as boss texture
+let bossObj;
+let bossX = 0;
+let bossY = 0;
+let imgBoss = GetCurrentScriptDirectory ~ "texture/cirno.png";
+
+// Tell the game where the default bullets are stored, for us to make use of. Directory based on root of game folder.
+#include "script/default_system/Default_ShotConst.txt"
+
+
+@Initialize {
+	
+	// define a boss in bossObj and register it
+	bossObj = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(bossObj);
+	
+	//Spawn the boss initially off screen in the center, variables expected are Object, xlocation and ylocation.
+	ObjMove_SetPosition(bossObj, 192, -100);
+	
+	//Set boss location, variables expected are Object, xlocation, ylocation and speed (0,0 is left(x) top(y))
+	ObjMove_SetDestAtSpeed(bossObj, 192, 120, 5);
+	
+	//runs the created task mainTask
+	mainTask;
+}
+
+@Event{
+
+	// setting the boss timer and life
+	alternative(GetEventType())
+	
+	// Boss Life Value
+	case(EV_REQUEST_LIFE){
+		SetScriptResult(1500);
+	}
+	
+	// Boss Timer Value
+	case(EV_REQUEST_TIMER){
+		SetScriptResult(69);
+	}
+	
+}
+
+@MainLoop{
+	
+	//Find the boss X and Y co-ordinates and update it to a variable.
+	//We do this in the main loop as it's always running.
+	bossX = ObjMove_GetX(bossObj);
+	bossY = ObjMove_GetY(bossObj);
+	
+	//Set boss collision for your bullets to collide with the boss, variables expected are Object, x coordinate, y coordinate, and radius of hitbox.
+	ObjEnemy_SetIntersectionCircleToShot(bossObj, bossX, bossY, 24);
+	
+	//Set the collision for your player character to collide with the boss, variables expected are Object, x coordinate, y coordinate, and radius of hitbox.
+	ObjEnemy_SetIntersectionCircleToPlayer(bossObj, bossX, bossY, 24);
+	
+	//Always yield mainloop. This tells the script that it needs to look for other tasks to perform before running it again.
+	//If not yielded, your other tasks will not run, and the script will just repeat the current function.
+	yield;
+	
+	
+}
+
+@Finalize{
+	
+}
+
+//Yield is called for only a single frame, so you can put it in a loop to make it run for a longer period of time, 
+//This will stop functions this gets called in from rerunning until the yield has passed.
+//The expected variables for loop is the amount of times you want the loop to run. 60 frames == 1 second.
+//'wait(1);' will function the same as 'yield;'
+//When calling wait, you give a frame value for how long you want the task to wait.
+function wait(w){
+	loop(w){
+		yield;
+	}
+}
+
+//mainTask works as a switchboard for tasks we declare.
+task mainTask{
+	//rerenders the boss 
+	renderBoss;
+	movement;
+}
+
+//Updates the main boss render
+task renderBoss{
+	let dir;
+	let speed;
+	
+	// Set the texture of the boss, variables expected are Object, texture
+	ObjPrim_SetTexture(bossObj, imgBoss);
+	
+	// Set the dimensions of the boss, variables expected are Object, top, left, bottom, right (Good for using spritesheets)
+	ObjSprite2D_SetSourceRect(bossObj, 0, 0, 110, 110);
+	
+	//Define the center of the object as true center.
+	ObjSprite2D_SetDestCenter(bossObj);
+	
+	//Rescale the boss entity to be smaller than the image. Expected values are Object, x scale, y scale and z scale (3d).
+	ObjRender_SetScaleXYZ(bossObj, 0.7, 0.7, 0);
+	
+	//Run this function while the boss is not deleted.
+	while(!Obj_IsDeleted(bossObj)){
+		
+		//Update the boss speed and direction locally
+		dir = ObjMove_GetAngle(bossObj);
+		speed = ObjMove_GetSpeed(bossObj);
+		
+		//If the boss is idle, set idle animation.
+		if(speed == 0){
+				ObjSprite2D_SetSourceRect(bossObj, 0, 0, 110, 110);
+				
+				//Set the object angle, variables expected are Object, x rotatation(vertical flipping), y rotation(horizontal flipping), z rotation (rotation)
+				ObjRender_SetAngleXYZ(bossObj, 0, 0, 0);
+		}
+		//If the boss is moving left, set different animation.
+		//cos(dir) checks if the direction is set to a negative value, which means moving left.
+		else if(cos(dir) < 0){
+				ObjSprite2D_SetSourceRect(bossObj, 0, 0, 110, 110);
+				ObjRender_SetAngleXYZ(bossObj, 0, 0, 0);
+		}
+		//If the boss is moving right, set different animation.
+		//cos(dir) checks if the direction is set to a negative value, which means moving left.
+		else if(cos(dir) > 0){
+				ObjSprite2D_SetSourceRect(bossObj, 0, 0, 110, 110);
+				ObjRender_SetAngleXYZ(bossObj, 0, 180, 0);
+		}
+		
+		yield;
+	}
+}
+
+//Moves the boss left and right, firing a cone at the players position at the start of the loop.
+task movement{
+	wait(60);
+	fire;
+	loop{
+				
+		ObjMove_SetDestAtSpeed(bossObj, 100, 120, 5);
+		wait(45);
+		fire;
+		wait(45);
+		
+		ObjMove_SetDestAtSpeed(bossObj, 280, 120, 5);
+		wait(45);
+		fire;
+		wait(45);
+	}
+}
+
+// Finds the angle from the boss to the player, generally used to fire bullets to the players current position at the time of calling.
+function bossAngleToPlayer {
+	let dir = atan2(GetPlayerY - bossY, GetPlayerX - bossX);
+	return dir;
+}
+
+
+// Finds the angle from the object to the player, generally used to fire bullets to the players current position at the time of calling.
+function angleToPlayer (obj) {
+	let objX = ObjMove_GetX(obj);
+	let objY = ObjMove_GetY(obj);
+	let dir = atan2(GetPlayerY - objY, GetPlayerX - objX);
+	return dir;
+}
+
+// firing bullets are based on 360 degrees, with 0 at the right, and 90 at the bottom, going clockwise to 359
+task fire{
+	
+	//Find the angle from the boss to the player before starting the firing sequence. Insert function inside loop to live track the player.
+	let dir = bossAngleToPlayer;
+	loop(10){
+		//variables expected are X spawn, y spawn, speed it travels, direction it goes in, bullet type based on the id or name of the shot in Default_ShotConst, frame delay before it shows up.
+		CreateShotA1(bossX, bossY, 5, dir - 3, 14, 0);
+		CreateShotA1(bossX, bossY, 5, dir, 14, 0);
+		CreateShotA1(bossX, bossY, 5, dir + 3, 14, 0);		
+
+		//Always yield your loops or they will freeze the engine for not moving onto other tasks.
+		//Here we're telling the fire task, that it should not create another bullet for another 60 frames
+		wait(3);
+	}
+}
