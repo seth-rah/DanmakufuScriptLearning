@@ -1,3 +1,13 @@
-/default_system
-/ExRumia
-/sample
+/script/default_system
+/script/ExRumia
+/script/sample
+/resource
+/tools
+/config.dat 
+/config.exe 
+/DnhViewer.exe
+/license.txt 
+/LogWindow.dat 
+/th_dnh.def.sample 
+/th_dnh.exe
+/th_dnh.log
