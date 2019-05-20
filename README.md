@@ -6,4 +6,6 @@ The version these scripts were tested with can be found here: https://ux.getuplo
 
 ## Install
 
-To make use of the scripts, put the contents of this repository into the `th_dnh_ph3/script` directory.
+To make use of the scripts, put the contents of this repository into the Danmakufu `/script` directory.
+
+Running Danmakufu after completing this, should make the script runnable from within.
